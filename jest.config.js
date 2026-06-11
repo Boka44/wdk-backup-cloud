@@ -3,35 +3,35 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  roots: ['<rootDir>/src/__tests__'],
-  testPathIgnorePatterns: ['/node_modules/', 'setup\\.ts$'],
+  roots: ['<rootDir>/tests'],
+  testPathIgnorePatterns: ['/node_modules/', 'tests/jest/'],
   transform: {
     '^.+\\.tsx?$': [
       'ts-jest',
       {
         tsconfig: 'tsconfig.test.json',
         diagnostics: {
-          ignoreCodes: ['TS151001'],
-        },
-      },
-    ],
+          ignoreCodes: ['TS151001']
+        }
+      }
+    ]
   },
   moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1',
+    '^(\\.{1,2}/.*)\\.js$': '$1'
   },
-  setupFiles: ['<rootDir>/src/__tests__/setup.ts'],
+  setupFiles: ['<rootDir>/tests/jest/setup.ts'],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/index.ts',
-    '!src/__tests__/**',
+    '!tests/**'
   ],
   coverageThreshold: {
     global: {
       lines: 90,
       branches: 80,
       functions: 90,
-      statements: 90,
-    },
+      statements: 90
+    }
   },
-  coverageReporters: ['text', 'lcov'],
-};
+  coverageReporters: ['text', 'lcov']
+}

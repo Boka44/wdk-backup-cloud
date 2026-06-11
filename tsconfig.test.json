@@ -5,5 +5,5 @@
     "moduleResolution": "Node",
     "isolatedModules": true
   },
-  "include": ["src"]
+  "include": ["src", "tests"]
 }

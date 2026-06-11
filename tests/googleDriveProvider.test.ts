@@ -1,10 +1,10 @@
-import { GoogleDriveProvider } from '../providers/googleDriveProvider';
+import { GoogleDriveProvider } from '../src/providers/googleDriveProvider';
 import {
   CloudAuthError,
   CloudStorageError,
   CloudUnavailableError,
-} from '../errors';
-import type { CloudEncryptionKeyFile } from '../types';
+} from '../src/errors';
+import type { CloudEncryptionKeyFile } from '../src/types';
 
 // ---------------------------------------------------------------------------
 // Fixtures

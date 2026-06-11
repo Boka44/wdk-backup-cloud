@@ -3,7 +3,7 @@ import {
   CloudStorageError,
   CloudUnavailableError,
   CloudValidationError,
-} from '../errors';
+} from '../src/errors';
 
 describe('Error classes', () => {
   // -------------------------------------------------------------------------

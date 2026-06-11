@@ -1,11 +1,11 @@
-import { CloudBackup } from "../cloudBackup";
+import { CloudBackup } from "../src/cloudBackup";
 import {
   CloudAuthError,
   CloudStorageError,
   CloudUnavailableError,
   CloudValidationError,
-} from "../errors";
-import type { CloudEncryptionKeyFile, CloudProvider } from "../types";
+} from "../src/errors";
+import type { CloudEncryptionKeyFile, CloudProvider } from "../src/types";
 
 // ---------------------------------------------------------------------------
 // Helpers

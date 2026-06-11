@@ -1,10 +1,10 @@
-import { CloudKitProvider } from '../providers/cloudKitProvider';
+import { CloudKitProvider } from '../src/providers/cloudKitProvider';
 import {
   CloudAuthError,
   CloudStorageError,
   CloudUnavailableError,
-} from '../errors';
-import type { CloudEncryptionKeyFile, CloudKitAuthContext } from '../types';
+} from '../src/errors';
+import type { CloudEncryptionKeyFile, CloudKitAuthContext } from '../src/types';
 
 // ---------------------------------------------------------------------------
 // Fixtures

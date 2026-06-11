@@ -158,9 +158,10 @@ Both providers use the same `CloudEncryptionKeyFile` shape:
 
 ```bash
 npm run build
+npm run lint
+npm run typecheck
 npm test
 npm run test:coverage
-npm run typecheck
 ```
 
 ---
