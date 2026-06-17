@@ -315,7 +315,7 @@ export class CloudKitProvider implements CloudProvider {
     const response = await this.cloudKitRequest("records/modify", auth, {
       operations: [
         {
-          operationType: "force_update",
+          operationType: "forceUpdate",
           record: {
             recordType: this.recordType,
             recordName: this.recordName,
