@@ -48,10 +48,9 @@ export class CloudBackup {
    */
   async uploadEncryptedKey(
     key: string,
-    metadata: Record<string, unknown>,
   ): Promise<CloudEncryptionKeyFile | null> {
     this.validateKey(key);
-    return await this.provider.upload(key, metadata);
+    return await this.provider.upload(key);
   }
 
   /**

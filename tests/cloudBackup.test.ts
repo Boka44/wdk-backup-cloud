@@ -14,8 +14,6 @@ import type { CloudEncryptionKeyFile, CloudProvider } from "../src/types";
 const SAMPLE_PAYLOAD: CloudEncryptionKeyFile = {
   encryptionKey: "enc_key_abc123",
   savedAt: "2026-03-01T00:00:00.000Z",
-  platform: "android",
-  version: 1,
   cloudEmail: "",
 };
 
@@ -24,7 +22,7 @@ function makeProvider(
 ): jest.Mocked<CloudProvider> {
   return {
     upload: jest
-      .fn<Promise<CloudEncryptionKeyFile | null>, [string, Record<string, unknown>]>()
+      .fn<Promise<CloudEncryptionKeyFile | null>, [string]>()
       .mockResolvedValue(SAMPLE_PAYLOAD),
     download: jest
       .fn<Promise<CloudEncryptionKeyFile | null>, []>()
@@ -41,21 +39,19 @@ function makeProvider(
 // ---------------------------------------------------------------------------
 
 describe("CloudBackup.uploadEncryptedKey", () => {
-  it("calls provider.upload with the correct key and metadata", async () => {
+  it("calls provider.upload with the correct key", async () => {
     const provider = makeProvider();
     const backup = new CloudBackup(provider);
-    await backup.uploadEncryptedKey("enc_key_abc123", { version: 1 });
+    await backup.uploadEncryptedKey("enc_key_abc123");
     expect(provider.upload).toHaveBeenCalledTimes(1);
-    expect(provider.upload).toHaveBeenCalledWith("enc_key_abc123", {
-      version: 1,
-    });
+    expect(provider.upload).toHaveBeenCalledWith("enc_key_abc123");
   });
 
   it("throws CloudValidationError for empty string", async () => {
     const provider = makeProvider();
     const backup = new CloudBackup(provider);
     await expect(
-      backup.uploadEncryptedKey("", { version: 1 }),
+      backup.uploadEncryptedKey(""),
     ).rejects.toBeInstanceOf(CloudValidationError);
     expect(provider.upload).not.toHaveBeenCalled();
   });
@@ -64,7 +60,7 @@ describe("CloudBackup.uploadEncryptedKey", () => {
     const provider = makeProvider();
     const backup = new CloudBackup(provider);
     await expect(
-      backup.uploadEncryptedKey("   ", { version: 1 }),
+      backup.uploadEncryptedKey("   "),
     ).rejects.toBeInstanceOf(CloudValidationError);
     expect(provider.upload).not.toHaveBeenCalled();
   });
@@ -76,7 +72,7 @@ describe("CloudBackup.uploadEncryptedKey", () => {
     });
     const backup = new CloudBackup(provider);
     await expect(
-      backup.uploadEncryptedKey("valid_key", { version: 1 }),
+      backup.uploadEncryptedKey("valid_key"),
     ).rejects.toBe(err);
   });
 
@@ -87,7 +83,7 @@ describe("CloudBackup.uploadEncryptedKey", () => {
     });
     const backup = new CloudBackup(provider);
     await expect(
-      backup.uploadEncryptedKey("valid_key", { version: 1 }),
+      backup.uploadEncryptedKey("valid_key"),
     ).rejects.toBe(err);
   });
 
@@ -98,15 +94,15 @@ describe("CloudBackup.uploadEncryptedKey", () => {
     });
     const backup = new CloudBackup(provider);
     await expect(
-      backup.uploadEncryptedKey("valid_key", { version: 1 }),
+      backup.uploadEncryptedKey("valid_key"),
     ).rejects.toBe(err);
   });
 
   it("accepts keys with leading/trailing spaces (not blank)", async () => {
     const provider = makeProvider();
     const backup = new CloudBackup(provider);
-    await backup.uploadEncryptedKey(" a ", { version: 1 });
-    expect(provider.upload).toHaveBeenCalledWith(" a ", { version: 1 });
+    await backup.uploadEncryptedKey(" a ");
+    expect(provider.upload).toHaveBeenCalledWith(" a ");
   });
 });
 

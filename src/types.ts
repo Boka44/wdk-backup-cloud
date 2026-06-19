@@ -30,13 +30,10 @@ export interface CloudProvider {
    * Store `encryptedKey` in the provider's cloud storage.
    * If a backup already exists, it MUST be overwritten.
    */
-  upload(
-    encryptedKey: string,
-    metadata: Record<string, unknown>,
-  ): Promise<CloudEncryptionKeyFile | null>;
+  upload(encryptedKey: string): Promise<CloudEncryptionKeyFile | null>;
 
   /**
-   * Retrieve the stored encrypted key and metadata.
+   * Retrieve the stored encrypted key backup file.
    * Returns `null` if no backup exists yet.
    */
   download(): Promise<CloudEncryptionKeyFile | null>;
@@ -123,17 +120,12 @@ export interface CloudKitConfig {
 
 /**
  * The JSON blob written to cloud storage by every provider.
- * Matches the proven format from the reference implementation.
  */
 export interface CloudEncryptionKeyFile {
   /** The encrypted wallet master key */
   readonly encryptionKey: string;
   /** ISO-8601 UTC timestamp when the backup was saved */
   readonly savedAt: string;
-  /** Platform that created this backup */
-  readonly platform: "ios" | "android";
-  /** Schema version */
-  readonly version: number;
   /** Cloud user email that owns this backup */
   readonly cloudEmail: string;
 }

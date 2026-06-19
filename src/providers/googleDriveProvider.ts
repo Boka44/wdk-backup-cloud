@@ -65,17 +65,10 @@ export class GoogleDriveProvider implements CloudProvider {
   // Public API
   // -------------------------------------------------------------------------
 
-  async upload(
-    encryptedKey: string,
-    metadata: Record<string, unknown>,
-  ): Promise<CloudEncryptionKeyFile | null> {
+  async upload(encryptedKey: string): Promise<CloudEncryptionKeyFile | null> {
     const payload: CloudEncryptionKeyFile = {
       encryptionKey: encryptedKey,
-      savedAt: metadata.savedAt
-        ? metadata.savedAt.toString()
-        : new Date().toISOString(),
-      platform: "android",
-      version: metadata.version ? (metadata.version as number) : 1,
+      savedAt: new Date().toISOString(),
       cloudEmail: this.cloudEmail,
     };
 

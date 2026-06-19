@@ -14,13 +14,10 @@ const ACCESS_TOKEN = 'test_access_token';
 const ENCRYPTED_KEY = 'encrypted_master_key_hex';
 const DEFAULT_PATH = 'wallet_backup_key.json';
 const FILE_ID = 'drive_file_id_123';
-const METADATA = { version: 1 };
 
 const VALID_PAYLOAD: CloudEncryptionKeyFile = {
   encryptionKey: ENCRYPTED_KEY,
   savedAt: '2026-02-25T00:00:00.000Z',
-  platform: 'android',
-  version: 1,
   cloudEmail: '',
 };
 
@@ -75,7 +72,7 @@ describe('GoogleDriveProvider.upload', () => {
     mockOk();
     mockListFiles([{ id: FILE_ID, name: DEFAULT_PATH }]);
 
-    await makeProvider().upload(ENCRYPTED_KEY, METADATA);
+    await makeProvider().upload(ENCRYPTED_KEY);
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     const createCall = fetchMock.mock.calls[1]!;
@@ -91,12 +88,12 @@ describe('GoogleDriveProvider.upload', () => {
     mockOk();
     mockListFiles([{ id: FILE_ID, name: DEFAULT_PATH }]);
 
-    await makeProvider().upload(ENCRYPTED_KEY, METADATA);
+    await makeProvider().upload(ENCRYPTED_KEY);
 
     const createBody = fetchMock.mock.calls[1]![1]?.body as string;
     expect(createBody).toContain('"encryptionKey"');
     expect(createBody).toContain(ENCRYPTED_KEY);
-    expect(createBody).toContain('"platform":"android"');
+    expect(createBody).toContain('"cloudEmail"');
   });
 
   it('updates existing file when one is found', async () => {
@@ -104,7 +101,7 @@ describe('GoogleDriveProvider.upload', () => {
     mockOk();
     mockListFiles([{ id: FILE_ID, name: DEFAULT_PATH }]);
 
-    await makeProvider().upload(ENCRYPTED_KEY, METADATA);
+    await makeProvider().upload(ENCRYPTED_KEY);
 
     const updateCall = fetchMock.mock.calls[1]!;
     expect(updateCall[0]).toContain(`/files/${FILE_ID}?uploadType=media`);
@@ -117,7 +114,7 @@ describe('GoogleDriveProvider.upload', () => {
     mockListFiles();
 
     await expect(
-      makeProvider().upload(ENCRYPTED_KEY, METADATA),
+      makeProvider().upload(ENCRYPTED_KEY),
     ).rejects.toBeInstanceOf(CloudStorageError);
   });
 
@@ -126,7 +123,7 @@ describe('GoogleDriveProvider.upload', () => {
     mockError(401, 'unauthorized');
 
     await expect(
-      makeProvider().upload(ENCRYPTED_KEY, METADATA),
+      makeProvider().upload(ENCRYPTED_KEY),
     ).rejects.toBeInstanceOf(CloudAuthError);
   });
 
@@ -134,7 +131,7 @@ describe('GoogleDriveProvider.upload', () => {
     fetchMock.mockRejectOnce(new Error('network unavailable'));
 
     await expect(
-      makeProvider().upload(ENCRYPTED_KEY, METADATA),
+      makeProvider().upload(ENCRYPTED_KEY),
     ).rejects.toBeInstanceOf(CloudUnavailableError);
   });
 
@@ -143,10 +140,9 @@ describe('GoogleDriveProvider.upload', () => {
     mockOk();
     mockListFiles([{ id: FILE_ID, name: DEFAULT_PATH }]);
 
-    const result = await makeProvider().upload(ENCRYPTED_KEY, METADATA);
+    const result = await makeProvider().upload(ENCRYPTED_KEY);
     expect(result).not.toBeNull();
     expect(result!.encryptionKey).toBe(ENCRYPTED_KEY);
-    expect(result!.platform).toBe('android');
   });
 
   it('uses custom file path basename in Drive query', async () => {
@@ -156,7 +152,6 @@ describe('GoogleDriveProvider.upload', () => {
 
     await makeProvider({ filePath: 'custom/backup.json' }).upload(
       ENCRYPTED_KEY,
-      METADATA,
     );
 
     const listUrl = String(fetchMock.mock.calls[0]![0]);
@@ -170,7 +165,6 @@ describe('GoogleDriveProvider.upload', () => {
 
     await makeProvider({ cloudEmail: 'user@example.com' }).upload(
       ENCRYPTED_KEY,
-      METADATA,
     );
 
     const createBody = fetchMock.mock.calls[1]![1]?.body as string;
@@ -218,7 +212,7 @@ describe('GoogleDriveProvider.download', () => {
 
   it('throws CloudStorageError when downloaded payload has wrong shape', async () => {
     mockListFiles([{ id: FILE_ID, name: DEFAULT_PATH }]);
-    mockText(JSON.stringify({ version: 2, bad: 'data' }));
+    mockText(JSON.stringify({ bad: 'data' }));
 
     await expect(makeProvider().download()).rejects.toBeInstanceOf(
       CloudStorageError,
@@ -246,7 +240,7 @@ describe('GoogleDriveProvider.download', () => {
   it('throws CloudStorageError on 400 bad request during list', async () => {
     mockError(400, 'malformed query');
 
-    await expect(makeProvider().upload(ENCRYPTED_KEY, METADATA)).rejects.toBeInstanceOf(
+    await expect(makeProvider().upload(ENCRYPTED_KEY)).rejects.toBeInstanceOf(
       CloudStorageError,
     );
   });

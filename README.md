@@ -38,7 +38,7 @@ import {
 const provider = new GoogleDriveProvider({ accessToken: "<your_token>" });
 const cloud = new CloudBackup(provider);
 
-await cloud.uploadEncryptedKey(encryptedKey, { version: 1 });
+await cloud.uploadEncryptedKey(encryptedKey);
 const backup = await cloud.downloadEncryptedKey(); // CloudEncryptionKeyFile | null
 ```
 
@@ -61,7 +61,7 @@ const provider = new CloudKitProvider({
 });
 
 const cloud = new CloudBackup(provider);
-await cloud.uploadEncryptedKey(encryptedKey, { version: 1 });
+await cloud.uploadEncryptedKey(encryptedKey);
 ```
 
 ---
@@ -72,14 +72,10 @@ await cloud.uploadEncryptedKey(encryptedKey, { version: 1 });
 2. Create a record type `WalletBackup` (or customize via `recordType` config) with fields:
    - `encryptionKey` (String)
    - `savedAt` (String)
-   - `platform` (String)
-   - `version` (Int64)
    - `cloudEmail` (String)
 3. Deploy schema to production.
 4. Enable **CloudKit web services** and obtain an API token.
 5. Wire `getCloudKitAuth()` to return fresh `apiToken` + `webAuthToken` from your app's CloudKit sign-in flow.
-
-**Migration** from the legacy `@tetherto/wdk-backup-cloud-react-native` iCloud Drive file format is **not handled by this package** — coordinate with your app team separately (CloudKit uses a different storage backend).
 
 ---
 
@@ -97,7 +93,6 @@ interface GoogleDriveConfig {
 ```
 
 - File stored in Google Drive `appDataFolder`
-- Compatible with backups from `@tetherto/wdk-backup-cloud-react-native` on Android
 
 ### `CloudKitProvider`
 
@@ -120,7 +115,7 @@ interface CloudKitConfig {
 
 | Method | Description |
 | ------ | ----------- |
-| `uploadEncryptedKey(key, metadata)` | Validate + upload |
+| `uploadEncryptedKey(key)` | Validate + upload |
 | `downloadEncryptedKey()` | Download or `null` |
 | `deleteBackup()` | Idempotent delete |
 | `isAvailable()` | Lightweight probe |
@@ -136,8 +131,6 @@ Both providers use the same `CloudEncryptionKeyFile` shape:
 {
   "encryptionKey": "<encrypted_wallet_master_key>",
   "savedAt": "2026-02-25T00:00:00.000Z",
-  "platform": "ios",
-  "version": 1,
   "cloudEmail": "user@example.com"
 }
 ```

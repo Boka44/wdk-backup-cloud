@@ -12,7 +12,6 @@ import type { CloudEncryptionKeyFile, CloudKitAuthContext } from '../src/types';
 
 const ENCRYPTED_KEY = 'encrypted_master_key_hex';
 const RECORD_NAME = 'wallet_backup_key';
-const METADATA = { version: 1 };
 
 const AUTH: CloudKitAuthContext = {
   apiToken: 'ck-api-token',
@@ -22,8 +21,6 @@ const AUTH: CloudKitAuthContext = {
 const VALID_PAYLOAD: CloudEncryptionKeyFile = {
   encryptionKey: ENCRYPTED_KEY,
   savedAt: '2026-02-25T00:00:00.000Z',
-  platform: 'ios',
-  version: 1,
   cloudEmail: '',
 };
 
@@ -33,8 +30,6 @@ const VALID_RECORD = {
   fields: {
     encryptionKey: { value: ENCRYPTED_KEY },
     savedAt: { value: VALID_PAYLOAD.savedAt },
-    platform: { value: 'ios' },
-    version: { value: 1 },
     cloudEmail: { value: '' },
   },
 };
@@ -95,7 +90,7 @@ describe('CloudKitProvider.upload', () => {
     mockModifyOk();
     mockLookupFound();
 
-    await makeProvider().upload(ENCRYPTED_KEY, METADATA);
+    await makeProvider().upload(ENCRYPTED_KEY);
 
     const modifyCall = fetchMock.mock.calls.find((c) =>
       String(c[0]).includes('records/modify'),
@@ -113,7 +108,7 @@ describe('CloudKitProvider.upload', () => {
     fetchMock.mockRejectOnce(new Error('network unavailable'));
 
     await expect(
-      makeProvider().upload(ENCRYPTED_KEY, METADATA),
+      makeProvider().upload(ENCRYPTED_KEY),
     ).rejects.toBeInstanceOf(CloudUnavailableError);
   });
 
@@ -121,7 +116,7 @@ describe('CloudKitProvider.upload', () => {
     mockJson({ reason: 'unauthorized' }, 401);
 
     await expect(
-      makeProvider().upload(ENCRYPTED_KEY, METADATA),
+      makeProvider().upload(ENCRYPTED_KEY),
     ).rejects.toBeInstanceOf(CloudAuthError);
   });
 
@@ -130,7 +125,7 @@ describe('CloudKitProvider.upload', () => {
     fetchMock.mockResponseOnce('insufficient storage quota', { status: 507 });
 
     await expect(
-      makeProvider().upload(ENCRYPTED_KEY, METADATA),
+      makeProvider().upload(ENCRYPTED_KEY),
     ).rejects.toBeInstanceOf(CloudStorageError);
   });
 
@@ -140,7 +135,7 @@ describe('CloudKitProvider.upload', () => {
     mockLookupNotFound();
 
     await expect(
-      makeProvider().upload(ENCRYPTED_KEY, METADATA),
+      makeProvider().upload(ENCRYPTED_KEY),
     ).rejects.toBeInstanceOf(CloudStorageError);
   });
 
@@ -149,10 +144,9 @@ describe('CloudKitProvider.upload', () => {
     mockModifyOk();
     mockLookupFound();
 
-    const result = await makeProvider().upload(ENCRYPTED_KEY, METADATA);
+    const result = await makeProvider().upload(ENCRYPTED_KEY);
     expect(result).not.toBeNull();
     expect(result!.encryptionKey).toBe(ENCRYPTED_KEY);
-    expect(result!.platform).toBe('ios');
   });
 
   it('includes cloudEmail from config', async () => {
@@ -162,7 +156,6 @@ describe('CloudKitProvider.upload', () => {
 
     await makeProvider({ cloudEmail: 'user@example.com' }).upload(
       ENCRYPTED_KEY,
-      METADATA,
     );
 
     const modifyCall = fetchMock.mock.calls.find((c) =>
@@ -182,22 +175,6 @@ describe('CloudKitProvider.upload', () => {
 // ---------------------------------------------------------------------------
 
 describe('CloudKitProvider.download', () => {
-  it('maps android platform from CloudKit record fields', async () => {
-    mockLookupNotFound();
-    mockLookupFound();
-    mockJson({
-      records: [
-        {
-          ...VALID_RECORD,
-          fields: { ...VALID_RECORD.fields, platform: { value: 'android' } },
-        },
-      ],
-    });
-
-    const result = await makeProvider().download();
-    expect(result?.platform).toBe('android');
-  });
-
   it('returns CloudEncryptionKeyFile for an existing backup', async () => {
     mockLookupNotFound();
     mockLookupFound();
@@ -238,7 +215,7 @@ describe('CloudKitProvider.download', () => {
     mockLookupNotFound();
     mockLookupFound();
     mockJson({
-      records: [{ recordName: RECORD_NAME, fields: { version: { value: 1 } } }],
+      records: [{ recordName: RECORD_NAME, fields: { savedAt: { value: VALID_PAYLOAD.savedAt } } }],
     });
 
     await expect(makeProvider().download()).rejects.toBeInstanceOf(
@@ -372,7 +349,7 @@ describe('CloudKitProvider.delete', () => {
     mockJson({ records: [{ recordName: RECORD_NAME, reason: 'QUOTA_EXCEEDED' }] });
 
     await expect(
-      makeProvider().upload(ENCRYPTED_KEY, METADATA),
+      makeProvider().upload(ENCRYPTED_KEY),
     ).rejects.toBeInstanceOf(CloudStorageError);
     expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('records/modify'))).toBe(
       true,

@@ -50,8 +50,6 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 const BACKUP_FIELD_KEYS = [
   "encryptionKey",
   "savedAt",
-  "platform",
-  "version",
   "cloudEmail",
 ] as const;
 
@@ -113,19 +111,12 @@ export class CloudKitProvider implements CloudProvider {
   // Public API
   // -------------------------------------------------------------------------
 
-  async upload(
-    encryptedKey: string,
-    metadata: Record<string, unknown>,
-  ): Promise<CloudEncryptionKeyFile | null> {
+  async upload(encryptedKey: string): Promise<CloudEncryptionKeyFile | null> {
     await this.assertAvailable();
 
     const payload: CloudEncryptionKeyFile = {
       encryptionKey: encryptedKey,
-      savedAt: metadata.savedAt
-        ? metadata.savedAt.toString()
-        : new Date().toISOString(),
-      platform: "ios",
-      version: metadata.version ? (metadata.version as number) : 1,
+      savedAt: new Date().toISOString(),
       cloudEmail: this.cloudEmail,
     };
 
@@ -322,8 +313,6 @@ export class CloudKitProvider implements CloudProvider {
             fields: {
               encryptionKey: { value: payload.encryptionKey },
               savedAt: { value: payload.savedAt },
-              platform: { value: payload.platform },
-              version: { value: payload.version },
               cloudEmail: { value: payload.cloudEmail },
             },
           },
@@ -382,23 +371,12 @@ export class CloudKitProvider implements CloudProvider {
       );
     }
 
-    const versionRaw = fields.version?.value;
-    const version =
-      typeof versionRaw === "number"
-        ? versionRaw
-        : typeof versionRaw === "string"
-          ? Number(versionRaw)
-          : 1;
-
     return {
       encryptionKey,
       savedAt:
         typeof fields.savedAt?.value === "string"
           ? fields.savedAt.value
           : new Date().toISOString(),
-      platform:
-        fields.platform?.value === "android" ? "android" : "ios",
-      version: Number.isFinite(version) ? version : 1,
       cloudEmail:
         typeof fields.cloudEmail?.value === "string"
           ? fields.cloudEmail.value
