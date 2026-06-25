@@ -2,8 +2,6 @@
 
 Cloud backup SDK for wallet apps. Stores an encrypted master key in **Google Drive** (`appDataFolder`) or **CloudKit** (private database) via a clean provider abstraction.
 
-No React Native dependencies — providers use `fetch` against Google Drive API v3 and CloudKit Web Services.
-
 ---
 
 ## Installation
