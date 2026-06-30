@@ -27,6 +27,7 @@ const VALID_PAYLOAD: CloudEncryptionKeyFile = {
 const VALID_RECORD = {
   recordName: RECORD_NAME,
   recordType: 'WalletBackup',
+  recordChangeTag: 'abc123change',
   fields: {
     encryptionKey: { value: ENCRYPTED_KEY },
     savedAt: { value: VALID_PAYLOAD.savedAt },
@@ -320,9 +321,28 @@ describe('CloudKitProvider.delete', () => {
       String(c[0]).includes('records/modify'),
     );
     const body = JSON.parse(deleteCall![1]?.body as string) as {
-      operations: Array<{ operationType: string }>;
+      operations: Array<{
+        operationType: string;
+        record: { recordChangeTag?: string };
+      }>;
     };
     expect(body.operations[0]!.operationType).toBe('delete');
+    expect(body.operations[0]!.record.recordChangeTag).toBe('abc123change');
+  });
+
+  it('throws CloudStorageError when recordChangeTag is missing', async () => {
+    mockLookupNotFound();
+    mockJson({
+      records: [{ ...VALID_RECORD, recordChangeTag: undefined }],
+    });
+
+    await expect(makeProvider().delete()).rejects.toBeInstanceOf(
+      CloudStorageError,
+    );
+    const modifyCalls = fetchMock.mock.calls.filter((c) =>
+      String(c[0]).includes('records/modify'),
+    );
+    expect(modifyCalls).toHaveLength(0);
   });
 
   it('is idempotent when delete returns 404', async () => {

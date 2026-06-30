@@ -64,6 +64,7 @@ interface CloudKitFieldValue {
 interface CloudKitRecord {
   recordName?: string;
   recordType?: string;
+  recordChangeTag?: string;
   reason?: string;
   fields?: Record<string, CloudKitFieldValue>;
 }
@@ -173,11 +174,11 @@ export class CloudKitProvider implements CloudProvider {
   async delete(): Promise<void> {
     await this.assertAvailable();
 
-    const exists = await this.recordExists();
-    if (!exists) return;
+    const record = await this.lookupRecord();
+    if (!record) return;
 
     try {
-      await this.deleteRecord();
+      await this.deleteRecord(record);
     } catch (cause) {
       throw this.mapError(cause, "Failed to delete backup from CloudKit");
     }
@@ -336,7 +337,13 @@ export class CloudKitProvider implements CloudProvider {
     }
   }
 
-  private async deleteRecord(): Promise<void> {
+  private async deleteRecord(record: CloudKitRecord): Promise<void> {
+    if (!record.recordChangeTag) {
+      throw new CloudStorageError(
+        "CloudKit record is missing recordChangeTag required for delete",
+      );
+    }
+
     const auth = await this.getCloudKitAuth();
     const response = await this.cloudKitRequest("records/modify", auth, {
       operations: [
@@ -345,6 +352,7 @@ export class CloudKitProvider implements CloudProvider {
           record: {
             recordType: this.recordType,
             recordName: this.recordName,
+            recordChangeTag: record.recordChangeTag,
           },
         },
       ],
