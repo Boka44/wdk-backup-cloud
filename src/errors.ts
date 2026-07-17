@@ -89,7 +89,7 @@ export class CloudStorageError extends CloudError {
 
 /**
  * The caller supplied an invalid argument to the SDK
- * (e.g., empty encrypted key, corrupt downloaded payload).
+ * (e.g., empty encrypted key, invalid provider config).
  */
 export class CloudValidationError extends CloudError {
   readonly code = "CLOUD_VALIDATION_ERROR" as const;

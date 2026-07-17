@@ -83,7 +83,8 @@ await cloud.uploadEncryptedKey(encryptedKey);
 
 ```ts
 interface GoogleDriveConfig {
-  accessToken: string;
+  accessToken?: string;                    // static token
+  getAccessToken?: () => Promise<string>;  // or fresh token per request
   filePath?: string;      // default: "wallet_backup_key.json"
   cloudEmail?: string;
   timeout?: number;       // default: 30000
@@ -91,6 +92,7 @@ interface GoogleDriveConfig {
 ```
 
 - File stored in Google Drive `appDataFolder`
+- Provide `accessToken` **or** `getAccessToken` (callback wins if both are set)
 
 ### `CloudKitProvider`
 

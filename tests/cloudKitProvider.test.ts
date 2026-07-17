@@ -3,6 +3,7 @@ import {
   CloudAuthError,
   CloudStorageError,
   CloudUnavailableError,
+  CloudValidationError,
 } from '../src/errors';
 import type { CloudEncryptionKeyFile, CloudKitAuthContext } from '../src/types';
 
@@ -41,6 +42,7 @@ function makeProvider(overrides?: {
   maxSyncRetries?: number;
   syncRetryDelayMs?: number;
   cloudEmail?: string;
+  timeout?: number;
 }): CloudKitProvider {
   return new CloudKitProvider({
     containerIdentifier: 'iCloud.com.example.app',
@@ -48,6 +50,16 @@ function makeProvider(overrides?: {
     getCloudKitAuth,
     ...overrides,
   });
+}
+
+async function expectError (
+  promise: Promise<unknown>,
+  ErrorClass: new (...args: never[]) => Error,
+  message: RegExp,
+): Promise<void> {
+  const err = await promise.catch((e: unknown) => e);
+  expect(err).toBeInstanceOf(ErrorClass);
+  expect((err as Error).message).toMatch(message);
 }
 
 function mockJson(body: unknown, status = 200): void {
@@ -71,19 +83,26 @@ function mockModifyOk(): void {
   mockJson({ records: [{ recordName: RECORD_NAME }] });
 }
 
-// ---------------------------------------------------------------------------
-// Reset between tests
-// ---------------------------------------------------------------------------
-
 beforeEach(() => {
   jest.clearAllMocks();
   fetchMock.resetMocks();
   getCloudKitAuth.mockResolvedValue(AUTH);
 });
 
-// ---------------------------------------------------------------------------
-// upload
-// ---------------------------------------------------------------------------
+describe('CloudKitProvider constructor', () => {
+  it('throws when maxSyncRetries is invalid', () => {
+    expect(() => makeProvider({ maxSyncRetries: 0 })).toThrow(
+      /maxSyncRetries/,
+    );
+    expect(() => makeProvider({ maxSyncRetries: 0 })).toThrow(
+      CloudValidationError,
+    );
+  });
+
+  it('throws when timeout is invalid', () => {
+    expect(() => makeProvider({ timeout: 0 })).toThrow(/timeout/);
+  });
+});
 
 describe('CloudKitProvider.upload', () => {
   it('saves a CloudKit record with backup fields', async () => {
@@ -98,36 +117,44 @@ describe('CloudKitProvider.upload', () => {
     );
     expect(modifyCall).toBeDefined();
     const body = JSON.parse(modifyCall![1]?.body as string) as {
-      operations: Array<{ record: { fields: Record<string, unknown> } }>;
+      operations: Array<{ record: { fields: Record<string, { value: string }> } }>;
     };
-    expect(body.operations[0]!.record.fields.encryptionKey).toEqual({
-      value: ENCRYPTED_KEY,
-    });
+    const fields = body.operations[0]!.record.fields;
+    expect(fields.encryptionKey).toEqual({ value: ENCRYPTED_KEY });
+    expect(fields.cloudEmail).toEqual({ value: '' });
+    expect(typeof fields.savedAt?.value).toBe('string');
+    expect(fields.savedAt.value).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
   it('throws CloudUnavailableError when CloudKit is not reachable', async () => {
     fetchMock.mockRejectOnce(new Error('network unavailable'));
 
-    await expect(
+    await expectError(
       makeProvider().upload(ENCRYPTED_KEY),
-    ).rejects.toBeInstanceOf(CloudUnavailableError);
+      CloudUnavailableError,
+      /not available/,
+    );
   });
 
   it('throws CloudAuthError when CloudKit returns 401', async () => {
     mockJson({ reason: 'unauthorized' }, 401);
 
-    await expect(
+    await expectError(
       makeProvider().upload(ENCRYPTED_KEY),
-    ).rejects.toBeInstanceOf(CloudAuthError);
+      CloudAuthError,
+      /not signed in/,
+    );
   });
 
   it('throws CloudStorageError on quota exceeded', async () => {
     mockLookupNotFound();
     fetchMock.mockResponseOnce('insufficient storage quota', { status: 507 });
 
-    await expect(
+    await expectError(
       makeProvider().upload(ENCRYPTED_KEY),
-    ).rejects.toBeInstanceOf(CloudStorageError);
+      CloudStorageError,
+      /quota exceeded/,
+    );
   });
 
   it('throws CloudStorageError when record not found after write', async () => {
@@ -135,9 +162,11 @@ describe('CloudKitProvider.upload', () => {
     mockModifyOk();
     mockLookupNotFound();
 
-    await expect(
+    await expectError(
       makeProvider().upload(ENCRYPTED_KEY),
-    ).rejects.toBeInstanceOf(CloudStorageError);
+      CloudStorageError,
+      /record not found after write/,
+    );
   });
 
   it('returns the written payload on success', async () => {
@@ -146,8 +175,8 @@ describe('CloudKitProvider.upload', () => {
     mockLookupFound();
 
     const result = await makeProvider().upload(ENCRYPTED_KEY);
-    expect(result).not.toBeNull();
-    expect(result!.encryptionKey).toBe(ENCRYPTED_KEY);
+    expect(result.encryptionKey).toBe(ENCRYPTED_KEY);
+    expect(result.cloudEmail).toBe('');
   });
 
   it('includes cloudEmail from config', async () => {
@@ -171,10 +200,6 @@ describe('CloudKitProvider.upload', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// download
-// ---------------------------------------------------------------------------
-
 describe('CloudKitProvider.download', () => {
   it('returns CloudEncryptionKeyFile for an existing backup', async () => {
     mockLookupNotFound();
@@ -182,8 +207,7 @@ describe('CloudKitProvider.download', () => {
     mockLookupFound();
 
     const result = await makeProvider().download();
-    expect(result).not.toBeNull();
-    expect(result!.encryptionKey).toBe(ENCRYPTED_KEY);
+    expect(result).toEqual(VALID_PAYLOAD);
   });
 
   it('returns null when record does not exist', async () => {
@@ -208,7 +232,7 @@ describe('CloudKitProvider.download', () => {
     const downloadPromise = makeProvider().download();
     await jest.advanceTimersByTimeAsync(1000);
     const result = await downloadPromise;
-    expect(result).not.toBeNull();
+    expect(result).toEqual(VALID_PAYLOAD);
     jest.useRealTimers();
   });
 
@@ -216,11 +240,16 @@ describe('CloudKitProvider.download', () => {
     mockLookupNotFound();
     mockLookupFound();
     mockJson({
-      records: [{ recordName: RECORD_NAME, fields: { savedAt: { value: VALID_PAYLOAD.savedAt } } }],
+      records: [{
+        recordName: RECORD_NAME,
+        fields: { savedAt: { value: VALID_PAYLOAD.savedAt } },
+      }],
     });
 
-    await expect(makeProvider().download()).rejects.toBeInstanceOf(
+    await expectError(
+      makeProvider().download(),
       CloudStorageError,
+      /unexpected shape/,
     );
   });
 
@@ -236,6 +265,7 @@ describe('CloudKitProvider.download', () => {
     await jest.runAllTimersAsync();
     const error = await resultPromise;
     expect(error).toBeInstanceOf(CloudAuthError);
+    expect((error as Error).message).toMatch(/not signed in|Failed to read/);
     jest.useRealTimers();
   });
 
@@ -251,6 +281,7 @@ describe('CloudKitProvider.download', () => {
     await jest.runAllTimersAsync();
     const error = await resultPromise;
     expect(error).toBeInstanceOf(CloudStorageError);
+    expect((error as Error).message).toMatch(/after \d+ attempts/);
     jest.useRealTimers();
   });
 
@@ -272,7 +303,7 @@ describe('CloudKitProvider.download', () => {
     await jest.advanceTimersByTimeAsync(1);
 
     const result = await downloadPromise;
-    expect(result).not.toBeNull();
+    expect(result).toEqual(VALID_PAYLOAD);
     jest.useRealTimers();
   });
 
@@ -292,22 +323,21 @@ describe('CloudKitProvider.download', () => {
     const lookupCalls = fetchMock.mock.calls.filter((c) =>
       String(c[0]).includes('records/lookup'),
     );
-    expect(lookupCalls.length).toBeGreaterThanOrEqual(3);
+    // probe + exists + 3 retries = 5
+    expect(lookupCalls.length).toBe(5);
     jest.useRealTimers();
   });
 
   it('throws CloudUnavailableError when CloudKit is unavailable', async () => {
     fetchMock.mockRejectOnce(new Error('network unavailable'));
 
-    await expect(makeProvider().download()).rejects.toBeInstanceOf(
+    await expectError(
+      makeProvider().download(),
       CloudUnavailableError,
+      /not available/,
     );
   });
 });
-
-// ---------------------------------------------------------------------------
-// delete
-// ---------------------------------------------------------------------------
 
 describe('CloudKitProvider.delete', () => {
   it('deletes existing record', async () => {
@@ -336,8 +366,10 @@ describe('CloudKitProvider.delete', () => {
       records: [{ ...VALID_RECORD, recordChangeTag: undefined }],
     });
 
-    await expect(makeProvider().delete()).rejects.toBeInstanceOf(
+    await expectError(
+      makeProvider().delete(),
       CloudStorageError,
+      /recordChangeTag/,
     );
     const modifyCalls = fetchMock.mock.calls.filter((c) =>
       String(c[0]).includes('records/modify'),
@@ -368,12 +400,20 @@ describe('CloudKitProvider.delete', () => {
     mockLookupNotFound();
     mockJson({ records: [{ recordName: RECORD_NAME, reason: 'QUOTA_EXCEEDED' }] });
 
-    await expect(
+    await expectError(
       makeProvider().upload(ENCRYPTED_KEY),
-    ).rejects.toBeInstanceOf(CloudStorageError);
-    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('records/modify'))).toBe(
-      true,
+      CloudStorageError,
+      /quota exceeded/,
     );
+
+    const modifyCall = fetchMock.mock.calls.find((c) =>
+      String(c[0]).includes('records/modify'),
+    );
+    expect(modifyCall).toBeDefined();
+    const body = JSON.parse(modifyCall![1]?.body as string) as {
+      operations: Array<{ operationType: string }>;
+    };
+    expect(body.operations[0]!.operationType).toBe('forceUpdate');
   });
 
   it('throws CloudStorageError if delete fails', async () => {
@@ -381,23 +421,23 @@ describe('CloudKitProvider.delete', () => {
     mockLookupFound();
     fetchMock.mockResponseOnce('permission denied', { status: 500 });
 
-    await expect(makeProvider().delete()).rejects.toBeInstanceOf(
+    await expectError(
+      makeProvider().delete(),
       CloudStorageError,
+      /Failed to delete/,
     );
   });
 
   it('throws CloudUnavailableError when CloudKit is not available', async () => {
     fetchMock.mockRejectOnce(new Error('network unavailable'));
 
-    await expect(makeProvider().delete()).rejects.toBeInstanceOf(
+    await expectError(
+      makeProvider().delete(),
       CloudUnavailableError,
+      /not available/,
     );
   });
 });
-
-// ---------------------------------------------------------------------------
-// isAvailable
-// ---------------------------------------------------------------------------
 
 describe('CloudKitProvider.isAvailable', () => {
   it('returns true when CloudKit lookup succeeds', async () => {
@@ -415,10 +455,6 @@ describe('CloudKitProvider.isAvailable', () => {
     await expect(makeProvider().isAvailable()).resolves.toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// exists
-// ---------------------------------------------------------------------------
 
 describe('CloudKitProvider.exists', () => {
   it('returns true when backup record exists', async () => {

@@ -46,9 +46,7 @@ export class CloudBackup {
    * @throws {CloudAuthError} if credentials are invalid.
    * @throws {CloudStorageError} if the write fails.
    */
-  async uploadEncryptedKey(
-    key: string,
-  ): Promise<CloudEncryptionKeyFile | null> {
+  async uploadEncryptedKey(key: string): Promise<CloudEncryptionKeyFile> {
     this.validateKey(key);
     return await this.provider.upload(key);
   }

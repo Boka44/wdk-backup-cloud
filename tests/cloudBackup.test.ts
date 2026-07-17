@@ -22,7 +22,7 @@ function makeProvider(
 ): jest.Mocked<CloudProvider> {
   return {
     upload: jest
-      .fn<Promise<CloudEncryptionKeyFile | null>, [string]>()
+      .fn<Promise<CloudEncryptionKeyFile>, [string]>()
       .mockResolvedValue(SAMPLE_PAYLOAD),
     download: jest
       .fn<Promise<CloudEncryptionKeyFile | null>, []>()
@@ -50,18 +50,24 @@ describe("CloudBackup.uploadEncryptedKey", () => {
   it("throws CloudValidationError for empty string", async () => {
     const provider = makeProvider();
     const backup = new CloudBackup(provider);
-    await expect(
-      backup.uploadEncryptedKey(""),
-    ).rejects.toBeInstanceOf(CloudValidationError);
+    await expect(backup.uploadEncryptedKey("")).rejects.toThrow(
+      "Encrypted key must be a non-empty string",
+    );
+    await expect(backup.uploadEncryptedKey("")).rejects.toBeInstanceOf(
+      CloudValidationError,
+    );
     expect(provider.upload).not.toHaveBeenCalled();
   });
 
   it("throws CloudValidationError for whitespace-only string", async () => {
     const provider = makeProvider();
     const backup = new CloudBackup(provider);
-    await expect(
-      backup.uploadEncryptedKey("   "),
-    ).rejects.toBeInstanceOf(CloudValidationError);
+    await expect(backup.uploadEncryptedKey("   ")).rejects.toThrow(
+      "Encrypted key must be a non-empty string",
+    );
+    await expect(backup.uploadEncryptedKey("   ")).rejects.toBeInstanceOf(
+      CloudValidationError,
+    );
     expect(provider.upload).not.toHaveBeenCalled();
   });
 

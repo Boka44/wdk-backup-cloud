@@ -30,7 +30,7 @@ export interface CloudProvider {
    * Store `encryptedKey` in the provider's cloud storage.
    * If a backup already exists, it MUST be overwritten.
    */
-  upload(encryptedKey: string): Promise<CloudEncryptionKeyFile | null>;
+  upload(encryptedKey: string): Promise<CloudEncryptionKeyFile>;
 
   /**
    * Retrieve the stored encrypted key backup file.
@@ -65,10 +65,15 @@ export interface CloudProvider {
  * Config for {@link GoogleDriveProvider}.
  * The caller is responsible for acquiring and refreshing the token.
  * This SDK performs NO OAuth flows.
+ *
+ * Provide either `accessToken` (static) or `getAccessToken` (fresh per request).
+ * If both are set, `getAccessToken` wins.
  */
 export interface GoogleDriveConfig {
   /** A valid OAuth2 access token scoped to `drive.appdata`. */
-  readonly accessToken: string;
+  readonly accessToken?: string;
+  /** Returns a fresh OAuth2 access token before each Drive API call. */
+  readonly getAccessToken?: () => Promise<string>;
   /** Override the backup file path. Default: `wallet_backup_key.json` */
   readonly filePath?: string;
   /** The user's cloud email — stored inside the backup file for traceability. */

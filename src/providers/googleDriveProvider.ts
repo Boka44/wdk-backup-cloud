@@ -26,7 +26,9 @@ import {
   CloudAuthError,
   CloudStorageError,
   CloudUnavailableError,
+  CloudValidationError,
 } from "../errors.js";
+import { CloudHttpError } from "../http-error.js";
 import type {
   CloudEncryptionKeyFile,
   CloudProvider,
@@ -48,24 +50,43 @@ const APP_DATA_FOLDER = "appDataFolder";
 // ---------------------------------------------------------------------------
 
 export class GoogleDriveProvider implements CloudProvider {
-  private readonly accessToken: string;
+  private readonly getAccessToken: () => Promise<string>;
   private readonly filePath: string;
   private readonly cloudEmail: string;
   private readonly timeoutMs: number;
   private readonly fetchFn = globalThis.fetch.bind(globalThis);
 
   constructor(config: GoogleDriveConfig) {
-    this.accessToken = config.accessToken;
+    if (config.getAccessToken) {
+      this.getAccessToken = config.getAccessToken;
+    } else if (config.accessToken) {
+      const token = config.accessToken;
+      this.getAccessToken = async () => token;
+    } else {
+      throw new CloudValidationError(
+        "GoogleDriveConfig requires accessToken or getAccessToken",
+      );
+    }
+
     this.filePath = config.filePath ?? DEFAULT_FILE_PATH;
     this.cloudEmail = config.cloudEmail ?? "";
     this.timeoutMs = config.timeout ?? DEFAULT_TIMEOUT_MS;
+
+    if (
+      !Number.isFinite(this.timeoutMs) ||
+      this.timeoutMs <= 0
+    ) {
+      throw new CloudValidationError(
+        "GoogleDriveConfig.timeout must be a number greater than 0",
+      );
+    }
   }
 
   // -------------------------------------------------------------------------
   // Public API
   // -------------------------------------------------------------------------
 
-  async upload(encryptedKey: string): Promise<CloudEncryptionKeyFile | null> {
+  async upload(encryptedKey: string): Promise<CloudEncryptionKeyFile> {
     const payload: CloudEncryptionKeyFile = {
       encryptionKey: encryptedKey,
       savedAt: new Date().toISOString(),
@@ -247,7 +268,7 @@ export class GoogleDriveProvider implements CloudProvider {
     );
 
     if (response.status === 404) {
-      throw new Error("404 not found");
+      throw new CloudHttpError("404 not found", 404);
     }
 
     if (!response.ok) {
@@ -278,8 +299,9 @@ export class GoogleDriveProvider implements CloudProvider {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      const accessToken = await this.getAccessToken();
       const headers = new Headers(init.headers);
-      headers.set("Authorization", `Bearer ${this.accessToken}`);
+      headers.set("Authorization", `Bearer ${accessToken}`);
       return await this.fetchFn(url, {
         ...init,
         headers,
@@ -287,9 +309,13 @@ export class GoogleDriveProvider implements CloudProvider {
       });
     } catch (cause) {
       if (cause instanceof Error && cause.name === "AbortError") {
-        throw new Error("network timeout");
+        throw new CloudHttpError("network timeout", null);
       }
-      throw cause;
+      if (cause instanceof CloudHttpError) throw cause;
+      throw new CloudHttpError(
+        cause instanceof Error ? cause.message : String(cause),
+        null,
+      );
     } finally {
       clearTimeout(timeout);
     }
@@ -298,7 +324,7 @@ export class GoogleDriveProvider implements CloudProvider {
   private async httpError(
     response: Response,
     context: string,
-  ): Promise<Error> {
+  ): Promise<CloudHttpError> {
     let detail = "";
     try {
       const text = await response.text();
@@ -306,7 +332,11 @@ export class GoogleDriveProvider implements CloudProvider {
     } catch {
       detail = response.statusText;
     }
-    return new Error(`${response.status} ${context}: ${detail}`);
+    return new CloudHttpError(
+      `${response.status} ${context}: ${detail}`,
+      response.status,
+      detail,
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -314,46 +344,49 @@ export class GoogleDriveProvider implements CloudProvider {
   // -------------------------------------------------------------------------
 
   private isNotFoundError(cause: unknown): boolean {
+    if (cause instanceof CloudHttpError) {
+      return cause.status === 404;
+    }
     const msg = cause instanceof Error ? cause.message : String(cause);
     return msg.includes("404") || msg.includes("not found");
   }
 
   private mapError(cause: unknown, context: string): Error {
+    if (cause instanceof CloudHttpError) {
+      const status = cause.status;
+
+      if (status === 401 || status === 403) {
+        return new CloudAuthError(
+          `Google Drive authentication failed — ${context}`,
+          cause,
+        );
+      }
+
+      if (
+        status === null ||
+        status === 429 ||
+        status === 502 ||
+        status === 503 ||
+        status === 504
+      ) {
+        return new CloudUnavailableError(
+          `Google Drive unavailable — ${context}`,
+          cause,
+        );
+      }
+
+      if (status === 400) {
+        return new CloudStorageError(
+          `Google Drive rejected the request (400 Bad Request) — ${context}`,
+          cause,
+        );
+      }
+
+      return new CloudStorageError(`${context}: ${cause.message}`, cause);
+    }
+
     const msg =
       cause instanceof Error ? cause.message.toLowerCase() : String(cause);
-
-    if (
-      msg.includes("unauthorized") ||
-      msg.includes("401") ||
-      msg.includes("403") ||
-      msg.includes("auth") ||
-      msg.includes("unauthenticated")
-    ) {
-      return new CloudAuthError(
-        `Google Drive authentication failed — ${context}`,
-        cause,
-      );
-    }
-
-    if (
-      msg.includes("unavailable") ||
-      msg.includes("network") ||
-      msg.includes("not available") ||
-      msg.includes("timeout") ||
-      msg.includes("abort")
-    ) {
-      return new CloudUnavailableError(
-        `Google Drive unavailable — ${context}`,
-        cause,
-      );
-    }
-
-    if (msg.includes("400") || msg.includes("malformed")) {
-      return new CloudStorageError(
-        `Google Drive rejected the request (400 Bad Request) — ${context}`,
-        cause,
-      );
-    }
 
     return new CloudStorageError(`${context}: ${msg}`, cause);
   }
@@ -369,16 +402,27 @@ export class GoogleDriveProvider implements CloudProvider {
       );
     }
 
+    if (parsed === null || typeof parsed !== "object") {
+      throw new CloudStorageError(
+        "Google Drive backup payload has an unexpected shape",
+      );
+    }
+
+    const record = parsed as Record<string, unknown>;
     if (
-      parsed === null ||
-      typeof parsed !== "object" ||
-      typeof (parsed as Record<string, unknown>)["encryptionKey"] !== "string"
+      typeof record.encryptionKey !== "string" ||
+      typeof record.savedAt !== "string" ||
+      typeof record.cloudEmail !== "string"
     ) {
       throw new CloudStorageError(
         "Google Drive backup payload has an unexpected shape",
       );
     }
 
-    return parsed as CloudEncryptionKeyFile;
+    return {
+      encryptionKey: record.encryptionKey,
+      savedAt: record.savedAt,
+      cloudEmail: record.cloudEmail,
+    };
   }
 }

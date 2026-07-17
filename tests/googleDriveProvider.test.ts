@@ -3,6 +3,7 @@ import {
   CloudAuthError,
   CloudStorageError,
   CloudUnavailableError,
+  CloudValidationError,
 } from '../src/errors';
 import type { CloudEncryptionKeyFile } from '../src/types';
 
@@ -22,14 +23,26 @@ const VALID_PAYLOAD: CloudEncryptionKeyFile = {
 };
 
 function makeProvider(config?: {
+  accessToken?: string;
+  getAccessToken?: () => Promise<string>;
   filePath?: string;
   cloudEmail?: string;
   timeout?: number;
 }): GoogleDriveProvider {
   return new GoogleDriveProvider({
-    accessToken: ACCESS_TOKEN,
+    accessToken: config?.accessToken ?? (config?.getAccessToken ? undefined : ACCESS_TOKEN),
     ...config,
   });
+}
+
+async function expectError (
+  promise: Promise<unknown>,
+  ErrorClass: new (...args: never[]) => Error,
+  message: RegExp,
+): Promise<void> {
+  const err = await promise.catch((e: unknown) => e);
+  expect(err).toBeInstanceOf(ErrorClass);
+  expect((err as Error).message).toMatch(message);
 }
 
 function mockListFiles(files: Array<{ id: string; name: string }> = []): void {
@@ -54,17 +67,22 @@ function mockError(status: number, body = 'error'): void {
   fetchMock.mockResponseOnce(body, { status });
 }
 
-// ---------------------------------------------------------------------------
-// Reset between tests
-// ---------------------------------------------------------------------------
-
 beforeEach(() => {
   fetchMock.resetMocks();
 });
 
-// ---------------------------------------------------------------------------
-// upload
-// ---------------------------------------------------------------------------
+describe('GoogleDriveProvider constructor', () => {
+  it('throws when neither accessToken nor getAccessToken is provided', () => {
+    expect(() => new GoogleDriveProvider({} as never)).toThrow(
+      /accessToken or getAccessToken/,
+    );
+  });
+
+  it('throws when timeout is invalid', () => {
+    expect(() => makeProvider({ timeout: 0 })).toThrow(/timeout/);
+    expect(() => makeProvider({ timeout: -1 })).toThrow(CloudValidationError);
+  });
+});
 
 describe('GoogleDriveProvider.upload', () => {
   it('creates a new file in appDataFolder when none exists', async () => {
@@ -83,6 +101,20 @@ describe('GoogleDriveProvider.upload', () => {
     expect(authHeader).toBe(`Bearer ${ACCESS_TOKEN}`);
   });
 
+  it('uses getAccessToken when provided', async () => {
+    const getAccessToken = jest.fn().mockResolvedValue('fresh_token');
+    mockListFiles();
+    mockOk();
+    mockListFiles([{ id: FILE_ID, name: DEFAULT_PATH }]);
+
+    await makeProvider({ getAccessToken }).upload(ENCRYPTED_KEY);
+
+    expect(getAccessToken).toHaveBeenCalled();
+    const createCall = fetchMock.mock.calls[1]!;
+    const authHeader = new Headers(createCall[1]?.headers).get('Authorization');
+    expect(authHeader).toBe('Bearer fresh_token');
+  });
+
   it('writes CloudEncryptionKeyFile JSON content', async () => {
     mockListFiles();
     mockOk();
@@ -94,6 +126,7 @@ describe('GoogleDriveProvider.upload', () => {
     expect(createBody).toContain('"encryptionKey"');
     expect(createBody).toContain(ENCRYPTED_KEY);
     expect(createBody).toContain('"cloudEmail"');
+    expect(createBody).toContain('"savedAt"');
   });
 
   it('updates existing file when one is found', async () => {
@@ -113,26 +146,32 @@ describe('GoogleDriveProvider.upload', () => {
     mockOk();
     mockListFiles();
 
-    await expect(
+    await expectError(
       makeProvider().upload(ENCRYPTED_KEY),
-    ).rejects.toBeInstanceOf(CloudStorageError);
+      CloudStorageError,
+      /file not found after write/,
+    );
   });
 
   it('throws CloudAuthError on auth failure during write', async () => {
     mockListFiles();
     mockError(401, 'unauthorized');
 
-    await expect(
+    await expectError(
       makeProvider().upload(ENCRYPTED_KEY),
-    ).rejects.toBeInstanceOf(CloudAuthError);
+      CloudAuthError,
+      /authentication failed/,
+    );
   });
 
   it('throws CloudUnavailableError on network failure', async () => {
     fetchMock.mockRejectOnce(new Error('network unavailable'));
 
-    await expect(
+    await expectError(
       makeProvider().upload(ENCRYPTED_KEY),
-    ).rejects.toBeInstanceOf(CloudUnavailableError);
+      CloudUnavailableError,
+      /unavailable/,
+    );
   });
 
   it('returns the written payload on success', async () => {
@@ -141,8 +180,9 @@ describe('GoogleDriveProvider.upload', () => {
     mockListFiles([{ id: FILE_ID, name: DEFAULT_PATH }]);
 
     const result = await makeProvider().upload(ENCRYPTED_KEY);
-    expect(result).not.toBeNull();
-    expect(result!.encryptionKey).toBe(ENCRYPTED_KEY);
+    expect(result.encryptionKey).toBe(ENCRYPTED_KEY);
+    expect(typeof result.savedAt).toBe('string');
+    expect(result.cloudEmail).toBe('');
   });
 
   it('uses custom file path basename in Drive query', async () => {
@@ -172,25 +212,22 @@ describe('GoogleDriveProvider.upload', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// download
-// ---------------------------------------------------------------------------
-
 describe('GoogleDriveProvider.download', () => {
   it('returns CloudEncryptionKeyFile when file exists', async () => {
     mockListFiles([{ id: FILE_ID, name: DEFAULT_PATH }]);
     mockText(JSON.stringify(VALID_PAYLOAD));
 
     const result = await makeProvider().download();
-    expect(result).not.toBeNull();
-    expect(result!.encryptionKey).toBe(ENCRYPTED_KEY);
+    expect(result).toEqual(VALID_PAYLOAD);
   });
 
   it('throws when file list fails with server error', async () => {
     mockError(500, 'server error');
 
-    await expect(makeProvider().download()).rejects.toBeInstanceOf(
+    await expectError(
+      makeProvider().download(),
       CloudStorageError,
+      /Failed to check Google Drive file existence/,
     );
   });
 
@@ -214,8 +251,21 @@ describe('GoogleDriveProvider.download', () => {
     mockListFiles([{ id: FILE_ID, name: DEFAULT_PATH }]);
     mockText(JSON.stringify({ bad: 'data' }));
 
-    await expect(makeProvider().download()).rejects.toBeInstanceOf(
+    await expectError(
+      makeProvider().download(),
       CloudStorageError,
+      /unexpected shape/,
+    );
+  });
+
+  it('throws when payload is missing savedAt or cloudEmail', async () => {
+    mockListFiles([{ id: FILE_ID, name: DEFAULT_PATH }]);
+    mockText(JSON.stringify({ encryptionKey: 'x' }));
+
+    await expectError(
+      makeProvider().download(),
+      CloudStorageError,
+      /unexpected shape/,
     );
   });
 
@@ -223,8 +273,10 @@ describe('GoogleDriveProvider.download', () => {
     mockListFiles([{ id: FILE_ID, name: DEFAULT_PATH }]);
     mockError(401, 'unauthorized');
 
-    await expect(makeProvider().download()).rejects.toBeInstanceOf(
+    await expectError(
+      makeProvider().download(),
       CloudAuthError,
+      /authentication failed/,
     );
   });
 
@@ -232,23 +284,23 @@ describe('GoogleDriveProvider.download', () => {
     mockListFiles([{ id: FILE_ID, name: DEFAULT_PATH }]);
     mockText('not json {{');
 
-    await expect(makeProvider().download()).rejects.toBeInstanceOf(
+    await expectError(
+      makeProvider().download(),
       CloudStorageError,
+      /invalid JSON/,
     );
   });
 
   it('throws CloudStorageError on 400 bad request during list', async () => {
     mockError(400, 'malformed query');
 
-    await expect(makeProvider().upload(ENCRYPTED_KEY)).rejects.toBeInstanceOf(
+    await expectError(
+      makeProvider().upload(ENCRYPTED_KEY),
       CloudStorageError,
+      /400 Bad Request/,
     );
   });
 });
-
-// ---------------------------------------------------------------------------
-// delete
-// ---------------------------------------------------------------------------
 
 describe('GoogleDriveProvider.delete', () => {
   it('deletes existing file', async () => {
@@ -265,8 +317,10 @@ describe('GoogleDriveProvider.delete', () => {
   it('throws when existence check fails during delete', async () => {
     mockError(500, 'server error');
 
-    await expect(makeProvider().delete()).rejects.toBeInstanceOf(
+    await expectError(
+      makeProvider().delete(),
       CloudStorageError,
+      /Failed to check Google Drive file existence/,
     );
   });
 
@@ -281,15 +335,13 @@ describe('GoogleDriveProvider.delete', () => {
     mockListFiles([{ id: FILE_ID, name: DEFAULT_PATH }]);
     mockError(403, 'forbidden');
 
-    await expect(makeProvider().delete()).rejects.toBeInstanceOf(
+    await expectError(
+      makeProvider().delete(),
       CloudAuthError,
+      /authentication failed/,
     );
   });
 });
-
-// ---------------------------------------------------------------------------
-// isAvailable
-// ---------------------------------------------------------------------------
 
 describe('GoogleDriveProvider.isAvailable', () => {
   it('returns true when Drive about endpoint succeeds', async () => {
@@ -307,10 +359,6 @@ describe('GoogleDriveProvider.isAvailable', () => {
     await expect(makeProvider().isAvailable()).resolves.toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// exists
-// ---------------------------------------------------------------------------
 
 describe('GoogleDriveProvider.exists', () => {
   it('returns true when file exists', async () => {

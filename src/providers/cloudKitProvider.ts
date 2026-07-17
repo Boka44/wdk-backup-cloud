@@ -27,7 +27,9 @@ import {
   CloudAuthError,
   CloudStorageError,
   CloudUnavailableError,
+  CloudValidationError,
 } from "../errors.js";
+import { CloudHttpError } from "../http-error.js";
 import type {
   CloudEncryptionKeyFile,
   CloudKitAuthContext,
@@ -106,13 +108,40 @@ export class CloudKitProvider implements CloudProvider {
     this.syncRetryDelayMs =
       config.syncRetryDelayMs ?? DEFAULT_SYNC_RETRY_DELAY_MS;
     this.timeoutMs = config.timeout ?? DEFAULT_TIMEOUT_MS;
+
+    if (
+      !Number.isInteger(this.maxSyncRetries) ||
+      this.maxSyncRetries < 1
+    ) {
+      throw new CloudValidationError(
+        "CloudKitConfig.maxSyncRetries must be an integer >= 1",
+      );
+    }
+
+    if (
+      !Number.isFinite(this.syncRetryDelayMs) ||
+      this.syncRetryDelayMs < 0
+    ) {
+      throw new CloudValidationError(
+        "CloudKitConfig.syncRetryDelayMs must be a number >= 0",
+      );
+    }
+
+    if (
+      !Number.isFinite(this.timeoutMs) ||
+      this.timeoutMs <= 0
+    ) {
+      throw new CloudValidationError(
+        "CloudKitConfig.timeout must be a number greater than 0",
+      );
+    }
   }
 
   // -------------------------------------------------------------------------
   // Public API
   // -------------------------------------------------------------------------
 
-  async upload(encryptedKey: string): Promise<CloudEncryptionKeyFile | null> {
+  async upload(encryptedKey: string): Promise<CloudEncryptionKeyFile> {
     await this.assertAvailable();
 
     const payload: CloudEncryptionKeyFile = {
@@ -180,6 +209,13 @@ export class CloudKitProvider implements CloudProvider {
     try {
       await this.deleteRecord(record);
     } catch (cause) {
+      if (
+        cause instanceof CloudStorageError ||
+        cause instanceof CloudAuthError ||
+        cause instanceof CloudUnavailableError
+      ) {
+        throw cause;
+      }
       throw this.mapError(cause, "Failed to delete backup from CloudKit");
     }
   }
@@ -237,9 +273,13 @@ export class CloudKitProvider implements CloudProvider {
       });
     } catch (cause) {
       if (cause instanceof Error && cause.name === "AbortError") {
-        throw new Error("network timeout");
+        throw new CloudHttpError("network timeout", null);
       }
-      throw cause;
+      if (cause instanceof CloudHttpError) throw cause;
+      throw new CloudHttpError(
+        cause instanceof Error ? cause.message : String(cause),
+        null,
+      );
     } finally {
       clearTimeout(timeout);
     }
@@ -258,7 +298,7 @@ export class CloudKitProvider implements CloudProvider {
     });
 
     if (response.status === 401 || response.status === 403) {
-      throw new Error("401 unauthorized");
+      throw new CloudHttpError("unauthorized", response.status);
     }
 
     if (!response.ok) {
@@ -279,7 +319,7 @@ export class CloudKitProvider implements CloudProvider {
     });
 
     if (response.status === 401 || response.status === 403) {
-      throw new Error("401 unauthorized");
+      throw new CloudHttpError("unauthorized", response.status);
     }
 
     if (!response.ok) {
@@ -292,7 +332,7 @@ export class CloudKitProvider implements CloudProvider {
       return null;
     }
     if (record.reason) {
-      throw new Error(record.reason);
+      throw new CloudHttpError(record.reason, null);
     }
     return record;
   }
@@ -323,7 +363,7 @@ export class CloudKitProvider implements CloudProvider {
     });
 
     if (response.status === 401 || response.status === 403) {
-      throw new Error("401 unauthorized");
+      throw new CloudHttpError("unauthorized", response.status);
     }
 
     if (!response.ok) {
@@ -333,7 +373,7 @@ export class CloudKitProvider implements CloudProvider {
     const body = (await response.json()) as CloudKitModifyResponse;
     const result = body.records?.[0];
     if (result?.reason && result.reason !== "RECORD_CHANGED") {
-      throw new Error(result.reason);
+      throw new CloudHttpError(result.reason, null);
     }
   }
 
@@ -362,7 +402,7 @@ export class CloudKitProvider implements CloudProvider {
     if (response.status === 404) return;
 
     if (response.status === 401 || response.status === 403) {
-      throw new Error("401 unauthorized");
+      throw new CloudHttpError("unauthorized", response.status);
     }
 
     if (!response.ok) {
@@ -373,7 +413,14 @@ export class CloudKitProvider implements CloudProvider {
   private recordToPayload(record: CloudKitRecord): CloudEncryptionKeyFile {
     const fields = record.fields ?? {};
     const encryptionKey = fields.encryptionKey?.value;
-    if (typeof encryptionKey !== "string") {
+    const savedAt = fields.savedAt?.value;
+    const cloudEmail = fields.cloudEmail?.value;
+
+    if (
+      typeof encryptionKey !== "string" ||
+      typeof savedAt !== "string" ||
+      typeof cloudEmail !== "string"
+    ) {
       throw new CloudStorageError(
         "CloudKit backup payload has an unexpected shape",
       );
@@ -381,21 +428,15 @@ export class CloudKitProvider implements CloudProvider {
 
     return {
       encryptionKey,
-      savedAt:
-        typeof fields.savedAt?.value === "string"
-          ? fields.savedAt.value
-          : new Date().toISOString(),
-      cloudEmail:
-        typeof fields.cloudEmail?.value === "string"
-          ? fields.cloudEmail.value
-          : "",
+      savedAt,
+      cloudEmail,
     };
   }
 
   private async httpError(
     response: Response,
     context: string,
-  ): Promise<Error> {
+  ): Promise<CloudHttpError> {
     let detail = "";
     try {
       const text = await response.text();
@@ -403,7 +444,11 @@ export class CloudKitProvider implements CloudProvider {
     } catch {
       detail = response.statusText;
     }
-    return new Error(`${response.status} ${context}: ${detail}`);
+    return new CloudHttpError(
+      `${response.status} ${context}: ${detail}`,
+      response.status,
+      detail,
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -428,53 +473,53 @@ export class CloudKitProvider implements CloudProvider {
   }
 
   private isAuthError(cause: unknown): boolean {
-    const msg =
-      cause instanceof Error ? cause.message.toLowerCase() : String(cause);
-    return (
-      msg.includes("401") ||
-      msg.includes("403") ||
-      msg.includes("not signed in") ||
-      msg.includes("no account") ||
-      msg.includes("unauthorized") ||
-      msg.includes("unauthenticated")
-    );
+    if (cause instanceof CloudHttpError) {
+      return cause.status === 401 || cause.status === 403;
+    }
+    return false;
   }
 
   private mapError(cause: unknown, context: string): Error {
+    if (cause instanceof CloudHttpError) {
+      const status = cause.status;
+      const reason = cause.message.toUpperCase();
+
+      if (status === 401 || status === 403) {
+        return new CloudAuthError(
+          `CloudKit user not signed in — ${context}`,
+          cause,
+        );
+      }
+
+      if (
+        reason.includes("QUOTA") ||
+        cause.detail.toLowerCase().includes("quota") ||
+        cause.detail.toLowerCase().includes("insufficient storage")
+      ) {
+        return new CloudStorageError(
+          `CloudKit storage quota exceeded — ${context}`,
+          cause,
+        );
+      }
+
+      if (
+        status === null ||
+        status === 429 ||
+        status === 502 ||
+        status === 503 ||
+        status === 504
+      ) {
+        return new CloudUnavailableError(
+          `CloudKit service unavailable — ${context}`,
+          cause,
+        );
+      }
+
+      return new CloudStorageError(`${context}: ${cause.message}`, cause);
+    }
+
     const msg =
       cause instanceof Error ? cause.message.toLowerCase() : String(cause);
-
-    if (this.isAuthError(cause)) {
-      return new CloudAuthError(
-        `CloudKit user not signed in — ${context}`,
-        cause,
-      );
-    }
-
-    if (
-      msg.includes("quota") ||
-      msg.includes("insufficient storage") ||
-      msg.includes("storage full")
-    ) {
-      return new CloudStorageError(
-        `CloudKit storage quota exceeded — ${context}`,
-        cause,
-      );
-    }
-
-    if (
-      msg.includes("unavailable") ||
-      msg.includes("disabled") ||
-      msg.includes("not available") ||
-      msg.includes("network") ||
-      msg.includes("timeout") ||
-      msg.includes("abort")
-    ) {
-      return new CloudUnavailableError(
-        `CloudKit service unavailable — ${context}`,
-        cause,
-      );
-    }
 
     return new CloudStorageError(`${context}: ${msg}`, cause);
   }
