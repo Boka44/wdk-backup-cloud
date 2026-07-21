@@ -17,14 +17,18 @@
  * Not part of the public API — providers map this to typed Cloud* errors.
  */
 export class CloudHttpError extends Error {
-  readonly status: number | null;
-  readonly detail: string;
-
-  constructor(message: string, status: number | null = null, detail = "") {
-    super(message);
-    Object.setPrototypeOf(this, new.target.prototype);
-    this.name = "CloudHttpError";
-    this.status = status;
-    this.detail = detail;
+  /**
+   * @param {string} message
+   * @param {number | null} [status]
+   * @param {string} [detail]
+   */
+  constructor (message, status = null, detail = '') {
+    super(message)
+    Object.setPrototypeOf(this, new.target.prototype)
+    this.name = 'CloudHttpError'
+    /** @type {number | null} */
+    this.status = status
+    /** @type {string} */
+    this.detail = detail
   }
 }

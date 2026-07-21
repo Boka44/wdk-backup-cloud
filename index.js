@@ -14,30 +14,25 @@
 
 /**
  * Public barrel export — named exports only, no default exports.
- * Tree-shakeable: each import can be individually eliminated by bundlers.
  */
 
-// Core
-export { CloudBackup } from "./cloudBackup.js";
+/**
+ * @typedef {import('./src/types.js').CloudEncryptionKeyFile} CloudEncryptionKeyFile
+ * @typedef {import('./src/types.js').CloudProvider} CloudProvider
+ * @typedef {import('./src/types.js').GoogleDriveConfig} GoogleDriveConfig
+ * @typedef {import('./src/types.js').CloudKitConfig} CloudKitConfig
+ * @typedef {import('./src/types.js').CloudKitAuthContext} CloudKitAuthContext
+ * @typedef {import('./src/errors.js').CloudErrorCode} CloudErrorCode
+ */
 
-// Providers
-export { GoogleDriveProvider } from "./providers/googleDriveProvider.js";
-export { CloudKitProvider } from "./providers/cloudKitProvider.js";
+export { CloudBackup } from './src/cloudBackup.js'
 
-// Errors (includes CloudErrorCode type)
+export { GoogleDriveProvider } from './src/providers/googleDriveProvider.js'
+export { CloudKitProvider } from './src/providers/cloudKitProvider.js'
+
 export {
   CloudAuthError,
   CloudStorageError,
   CloudUnavailableError,
-  CloudValidationError,
-} from "./errors.js";
-export type { CloudErrorCode } from "./errors.js";
-
-// Types
-export type {
-  CloudEncryptionKeyFile,
-  CloudKitAuthContext,
-  CloudProvider,
-  GoogleDriveConfig,
-  CloudKitConfig,
-} from "./types.js";
+  CloudValidationError
+} from './src/errors.js'

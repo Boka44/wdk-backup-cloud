@@ -27,39 +27,38 @@ npm install @tetherto/wdk-backup-cloud
 
 ### Google Drive
 
-```ts
+```js
 import {
   CloudBackup,
-  GoogleDriveProvider,
-} from "@tetherto/wdk-backup-cloud";
+  GoogleDriveProvider
+} from '@tetherto/wdk-backup-cloud'
 
-const provider = new GoogleDriveProvider({ accessToken: "<your_token>" });
-const cloud = new CloudBackup(provider);
+const provider = new GoogleDriveProvider({ accessToken: '<your_token>' })
+const cloud = new CloudBackup(provider)
 
-await cloud.uploadEncryptedKey(encryptedKey);
-const backup = await cloud.downloadEncryptedKey(); // CloudEncryptionKeyFile | null
+await cloud.uploadEncryptedKey(encryptedKey)
+const backup = await cloud.downloadEncryptedKey() // CloudEncryptionKeyFile | null
 ```
 
 ### CloudKit
 
-```ts
+```js
 import {
   CloudBackup,
-  CloudKitProvider,
-} from "@tetherto/wdk-backup-cloud";
-import type { CloudKitAuthContext } from "@tetherto/wdk-backup-cloud";
+  CloudKitProvider
+} from '@tetherto/wdk-backup-cloud'
 
 const provider = new CloudKitProvider({
-  containerIdentifier: "iCloud.com.example.wallet",
-  environment: "production",
-  getCloudKitAuth: async (): Promise<CloudKitAuthContext> => ({
-    apiToken: "<cloudkit_api_token>",
-    webAuthToken: "<user_web_auth_token>",
-  }),
-});
+  containerIdentifier: 'iCloud.com.example.wallet',
+  environment: 'production',
+  getCloudKitAuth: async () => ({
+    apiToken: '<cloudkit_api_token>',
+    webAuthToken: '<user_web_auth_token>'
+  })
+})
 
-const cloud = new CloudBackup(provider);
-await cloud.uploadEncryptedKey(encryptedKey);
+const cloud = new CloudBackup(provider)
+await cloud.uploadEncryptedKey(encryptedKey)
 ```
 
 ---
@@ -81,35 +80,35 @@ await cloud.uploadEncryptedKey(encryptedKey);
 
 ### `GoogleDriveProvider`
 
-```ts
-interface GoogleDriveConfig {
-  accessToken?: string;                    // static token
-  getAccessToken?: () => Promise<string>;  // or fresh token per request
-  filePath?: string;      // default: "wallet_backup_key.json"
-  cloudEmail?: string;
-  timeout?: number;       // default: 30000
-}
-```
+`GoogleDriveConfig`:
+
+| Field | Type | Notes |
+| ----- | ---- | ----- |
+| `accessToken` | `string` | Static OAuth2 token (optional) |
+| `getAccessToken` | `() => Promise<string>` | Fresh token per request (optional) |
+| `filePath` | `string` | Default: `wallet_backup_key.json` |
+| `cloudEmail` | `string` | Stored inside the backup file |
+| `timeout` | `number` | Default: `30000` |
 
 - File stored in Google Drive `appDataFolder`
 - Provide `accessToken` **or** `getAccessToken` (callback wins if both are set)
 
 ### `CloudKitProvider`
 
-```ts
-interface CloudKitConfig {
-  containerIdentifier: string;
-  environment: "development" | "production";
-  zoneName?: string;           // default: "_defaultZone"
-  recordName?: string;         // default: "wallet_backup_key"
-  recordType?: string;         // default: "WalletBackup"
-  cloudEmail?: string;
-  getCloudKitAuth: () => Promise<CloudKitAuthContext>;
-  maxSyncRetries?: number;
-  syncRetryDelayMs?: number;
-  timeout?: number;
-}
-```
+`CloudKitConfig`:
+
+| Field | Type | Notes |
+| ----- | ---- | ----- |
+| `containerIdentifier` | `string` | Required |
+| `environment` | `'development' \| 'production'` | Required |
+| `zoneName` | `string` | Default: `_defaultZone` |
+| `recordName` | `string` | Default: `wallet_backup_key` |
+| `recordType` | `string` | Default: `WalletBackup` |
+| `cloudEmail` | `string` | Stored inside the backup record |
+| `getCloudKitAuth` | `() => Promise<CloudKitAuthContext>` | Required |
+| `maxSyncRetries` | `number` | Default: `10` |
+| `syncRetryDelayMs` | `number` | Default: `1000` |
+| `timeout` | `number` | Default: `30000` |
 
 ### `CloudBackup`
 
@@ -150,9 +149,8 @@ Both providers use the same `CloudEncryptionKeyFile` shape:
 ## Build
 
 ```bash
-npm run build
 npm run lint
-npm run typecheck
+npm run build:types
 npm test
 npm run test:coverage
 ```

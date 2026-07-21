@@ -19,31 +19,26 @@
  * Security: error messages MUST NOT contain encrypted key material.
  */
 
-// ---------------------------------------------------------------------------
-// Discriminant union
-// ---------------------------------------------------------------------------
-
-export type CloudErrorCode =
-  | "CLOUD_UNAVAILABLE"
-  | "CLOUD_AUTH_ERROR"
-  | "CLOUD_STORAGE_ERROR"
-  | "CLOUD_VALIDATION_ERROR";
+/**
+ * @typedef {'CLOUD_UNAVAILABLE' | 'CLOUD_AUTH_ERROR' | 'CLOUD_STORAGE_ERROR' | 'CLOUD_VALIDATION_ERROR'} CloudErrorCode
+ */
 
 // ---------------------------------------------------------------------------
 // Base class
 // ---------------------------------------------------------------------------
 
-abstract class CloudError extends Error {
-  abstract readonly code: CloudErrorCode;
-
-  constructor(
-    message: string,
-    readonly cause?: unknown,
-  ) {
-    super(message);
+class CloudError extends Error {
+  /**
+   * @param {string} message
+   * @param {unknown} [cause]
+   */
+  constructor (message, cause) {
+    super(message)
     // Fix prototype chain for transpiled classes
-    Object.setPrototypeOf(this, new.target.prototype);
-    this.name = new.target.name;
+    Object.setPrototypeOf(this, new.target.prototype)
+    this.name = new.target.name
+    /** @type {unknown} */
+    this.cause = cause
   }
 }
 
@@ -56,10 +51,14 @@ abstract class CloudError extends Error {
  * (e.g., CloudKit unavailable, no network connectivity).
  */
 export class CloudUnavailableError extends CloudError {
-  readonly code = "CLOUD_UNAVAILABLE" as const;
-
-  constructor(message = "Cloud storage is unavailable", cause?: unknown) {
-    super(message, cause);
+  /**
+   * @param {string} [message]
+   * @param {unknown} [cause]
+   */
+  constructor (message = 'Cloud storage is unavailable', cause) {
+    super(message, cause)
+    /** @type {CloudErrorCode} */
+    this.code = 'CLOUD_UNAVAILABLE'
   }
 }
 
@@ -68,10 +67,14 @@ export class CloudUnavailableError extends CloudError {
  * (e.g., Google OAuth token revoked, CloudKit user not signed in).
  */
 export class CloudAuthError extends CloudError {
-  readonly code = "CLOUD_AUTH_ERROR" as const;
-
-  constructor(message = "Cloud authentication failed", cause?: unknown) {
-    super(message, cause);
+  /**
+   * @param {string} [message]
+   * @param {unknown} [cause]
+   */
+  constructor (message = 'Cloud authentication failed', cause) {
+    super(message, cause)
+    /** @type {CloudErrorCode} */
+    this.code = 'CLOUD_AUTH_ERROR'
   }
 }
 
@@ -80,10 +83,14 @@ export class CloudAuthError extends CloudError {
  * (e.g., quota exceeded, I/O error, malformed server response).
  */
 export class CloudStorageError extends CloudError {
-  readonly code = "CLOUD_STORAGE_ERROR" as const;
-
-  constructor(message = "Cloud storage operation failed", cause?: unknown) {
-    super(message, cause);
+  /**
+   * @param {string} [message]
+   * @param {unknown} [cause]
+   */
+  constructor (message = 'Cloud storage operation failed', cause) {
+    super(message, cause)
+    /** @type {CloudErrorCode} */
+    this.code = 'CLOUD_STORAGE_ERROR'
   }
 }
 
@@ -92,9 +99,13 @@ export class CloudStorageError extends CloudError {
  * (e.g., empty encrypted key, invalid provider config).
  */
 export class CloudValidationError extends CloudError {
-  readonly code = "CLOUD_VALIDATION_ERROR" as const;
-
-  constructor(message = "Cloud backup validation failed", cause?: unknown) {
-    super(message, cause);
+  /**
+   * @param {string} [message]
+   * @param {unknown} [cause]
+   */
+  constructor (message = 'Cloud backup validation failed', cause) {
+    super(message, cause)
+    /** @type {CloudErrorCode} */
+    this.code = 'CLOUD_VALIDATION_ERROR'
   }
 }

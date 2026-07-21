@@ -23,14 +23,22 @@
  *    our typed error classes)
  */
 
-import { CloudValidationError } from "./errors.js";
-import type { CloudEncryptionKeyFile, CloudProvider } from "./types.js";
+import { CloudValidationError } from './errors.js'
+
+/**
+ * @typedef {import('./types.js').CloudProvider} CloudProvider
+ * @typedef {import('./types.js').CloudEncryptionKeyFile} CloudEncryptionKeyFile
+ */
 
 export class CloudBackup {
-  private readonly provider: CloudProvider;
+  /** @type {CloudProvider} */
+  #provider
 
-  constructor(provider: CloudProvider) {
-    this.provider = provider;
+  /**
+   * @param {CloudProvider} provider
+   */
+  constructor (provider) {
+    this.#provider = provider
   }
 
   // -------------------------------------------------------------------------
@@ -40,69 +48,75 @@ export class CloudBackup {
   /**
    * Upload the encrypted master key to cloud storage.
    *
-   * @param key - The encrypted wallet master key (must be non-empty).
+   * @param {string} key - The encrypted wallet master key (must be non-empty).
+   * @returns {Promise<CloudEncryptionKeyFile>}
    * @throws {CloudValidationError} if `key` is empty or whitespace-only.
    * @throws {CloudUnavailableError} if the cloud service is unreachable.
    * @throws {CloudAuthError} if credentials are invalid.
    * @throws {CloudStorageError} if the write fails.
    */
-  async uploadEncryptedKey(key: string): Promise<CloudEncryptionKeyFile> {
-    this.validateKey(key);
-    return await this.provider.upload(key);
+  async uploadEncryptedKey (key) {
+    this.#validateKey(key)
+    return await this.#provider.upload(key)
   }
 
   /**
    * Download the encrypted master key from cloud storage.
    *
-   * @returns The encrypted key file, or `null` if no backup exists yet.
+   * @returns {Promise<CloudEncryptionKeyFile | null>} The encrypted key file, or `null` if no backup exists yet.
    * @throws {CloudUnavailableError} if the cloud service is unreachable.
    * @throws {CloudAuthError} if credentials are invalid.
    * @throws {CloudStorageError} if the read fails.
    */
-  async downloadEncryptedKey(): Promise<CloudEncryptionKeyFile | null> {
-    return this.provider.download();
+  async downloadEncryptedKey () {
+    return await this.#provider.download()
   }
 
   /**
    * Permanently delete the cloud backup.
    * Idempotent — safe to call even when no backup exists.
    *
+   * @returns {Promise<void>}
    * @throws {CloudUnavailableError} if the cloud service is unreachable.
    * @throws {CloudAuthError} if credentials are invalid.
    * @throws {CloudStorageError} if the delete fails.
    */
-  async deleteBackup(): Promise<void> {
-    return this.provider.delete();
+  async deleteBackup () {
+    return await this.#provider.delete()
   }
 
   /**
    * Check whether the cloud provider is accessible right now.
    *
-   * @returns `true` if available, `false` otherwise (never throws).
+   * @returns {Promise<boolean>} `true` if available, `false` otherwise (never throws).
    */
-  async isAvailable(): Promise<boolean> {
-    return this.provider.isAvailable();
+  async isAvailable () {
+    return await this.#provider.isAvailable()
   }
 
   /**
    * Check whether a backup file exists in cloud storage.
    * Does not download the content — lightweight existence check.
    *
-   * @returns `true` if the backup file exists, `false` otherwise (never throws).
+   * @returns {Promise<boolean>} `true` if the backup file exists, `false` otherwise (never throws).
    */
-  async exists(): Promise<boolean> {
-    return this.provider.exists();
+  async exists () {
+    return await this.#provider.exists()
   }
 
   // -------------------------------------------------------------------------
   // Private helpers
   // -------------------------------------------------------------------------
 
-  private validateKey(key: string): void {
+  /**
+   * @param {string} key
+   * @returns {void}
+   */
+  #validateKey (key) {
     if (key.trim().length === 0) {
       throw new CloudValidationError(
-        "Encrypted key must be a non-empty string",
-      );
+        'Encrypted key must be a non-empty string'
+      )
     }
   }
 }

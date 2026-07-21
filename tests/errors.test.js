@@ -2,8 +2,8 @@ import {
   CloudAuthError,
   CloudStorageError,
   CloudUnavailableError,
-  CloudValidationError,
-} from '../src/errors';
+  CloudValidationError
+} from '../src/errors.js'
 
 describe('Error classes', () => {
   // -------------------------------------------------------------------------
@@ -12,39 +12,39 @@ describe('Error classes', () => {
 
   describe('CloudUnavailableError', () => {
     it('has correct name', () => {
-      const err = new CloudUnavailableError();
-      expect(err.name).toBe('CloudUnavailableError');
-    });
+      const err = new CloudUnavailableError()
+      expect(err.name).toBe('CloudUnavailableError')
+    })
 
     it('has correct code', () => {
-      const err = new CloudUnavailableError();
-      expect(err.code).toBe('CLOUD_UNAVAILABLE');
-    });
+      const err = new CloudUnavailableError()
+      expect(err.code).toBe('CLOUD_UNAVAILABLE')
+    })
 
     it('uses default message when none supplied', () => {
-      const err = new CloudUnavailableError();
-      expect(err.message).toBe('Cloud storage is unavailable');
-    });
+      const err = new CloudUnavailableError()
+      expect(err.message).toBe('Cloud storage is unavailable')
+    })
 
     it('uses custom message', () => {
-      const err = new CloudUnavailableError('CloudKit off');
-      expect(err.message).toBe('CloudKit off');
-    });
+      const err = new CloudUnavailableError('CloudKit off')
+      expect(err.message).toBe('CloudKit off')
+    })
 
     it('stores cause', () => {
-      const cause = new Error('net error');
-      const err = new CloudUnavailableError('oops', cause);
-      expect(err.cause).toBe(cause);
-    });
+      const cause = new Error('net error')
+      const err = new CloudUnavailableError('oops', cause)
+      expect(err.cause).toBe(cause)
+    })
 
     it('is instanceof Error', () => {
-      expect(new CloudUnavailableError()).toBeInstanceOf(Error);
-    });
+      expect(new CloudUnavailableError()).toBeInstanceOf(Error)
+    })
 
     it('is instanceof CloudUnavailableError', () => {
-      expect(new CloudUnavailableError()).toBeInstanceOf(CloudUnavailableError);
-    });
-  });
+      expect(new CloudUnavailableError()).toBeInstanceOf(CloudUnavailableError)
+    })
+  })
 
   // -------------------------------------------------------------------------
   // CloudAuthError
@@ -52,30 +52,28 @@ describe('Error classes', () => {
 
   describe('CloudAuthError', () => {
     it('has correct name', () => {
-      expect(new CloudAuthError().name).toBe('CloudAuthError');
-    });
+      expect(new CloudAuthError().name).toBe('CloudAuthError')
+    })
 
     it('has correct code', () => {
-      expect(new CloudAuthError().code).toBe('CLOUD_AUTH_ERROR');
-    });
+      expect(new CloudAuthError().code).toBe('CLOUD_AUTH_ERROR')
+    })
 
     it('uses default message', () => {
-      expect(new CloudAuthError().message).toBe(
-        'Cloud authentication failed',
-      );
-    });
+      expect(new CloudAuthError().message).toBe('Cloud authentication failed')
+    })
 
     it('accepts custom message and cause', () => {
-      const c = new Error('401');
-      const err = new CloudAuthError('token expired', c);
-      expect(err.message).toBe('token expired');
-      expect(err.cause).toBe(c);
-    });
+      const c = new Error('401')
+      const err = new CloudAuthError('token expired', c)
+      expect(err.message).toBe('token expired')
+      expect(err.cause).toBe(c)
+    })
 
     it('is instanceof Error', () => {
-      expect(new CloudAuthError()).toBeInstanceOf(Error);
-    });
-  });
+      expect(new CloudAuthError()).toBeInstanceOf(Error)
+    })
+  })
 
   // -------------------------------------------------------------------------
   // CloudStorageError
@@ -83,28 +81,28 @@ describe('Error classes', () => {
 
   describe('CloudStorageError', () => {
     it('has correct name', () => {
-      expect(new CloudStorageError().name).toBe('CloudStorageError');
-    });
+      expect(new CloudStorageError().name).toBe('CloudStorageError')
+    })
 
     it('has correct code', () => {
-      expect(new CloudStorageError().code).toBe('CLOUD_STORAGE_ERROR');
-    });
+      expect(new CloudStorageError().code).toBe('CLOUD_STORAGE_ERROR')
+    })
 
     it('uses default message', () => {
       expect(new CloudStorageError().message).toBe(
-        'Cloud storage operation failed',
-      );
-    });
+        'Cloud storage operation failed'
+      )
+    })
 
     it('stores cause', () => {
-      const c = new Error('quota');
-      expect(new CloudStorageError('q', c).cause).toBe(c);
-    });
+      const c = new Error('quota')
+      expect(new CloudStorageError('q', c).cause).toBe(c)
+    })
 
     it('is instanceof Error', () => {
-      expect(new CloudStorageError()).toBeInstanceOf(Error);
-    });
-  });
+      expect(new CloudStorageError()).toBeInstanceOf(Error)
+    })
+  })
 
   // -------------------------------------------------------------------------
   // CloudValidationError
@@ -112,23 +110,23 @@ describe('Error classes', () => {
 
   describe('CloudValidationError', () => {
     it('has correct name', () => {
-      expect(new CloudValidationError().name).toBe('CloudValidationError');
-    });
+      expect(new CloudValidationError().name).toBe('CloudValidationError')
+    })
 
     it('has correct code', () => {
-      expect(new CloudValidationError().code).toBe('CLOUD_VALIDATION_ERROR');
-    });
+      expect(new CloudValidationError().code).toBe('CLOUD_VALIDATION_ERROR')
+    })
 
     it('uses default message', () => {
       expect(new CloudValidationError().message).toBe(
-        'Cloud backup validation failed',
-      );
-    });
+        'Cloud backup validation failed'
+      )
+    })
 
     it('is instanceof Error', () => {
-      expect(new CloudValidationError()).toBeInstanceOf(Error);
-    });
-  });
+      expect(new CloudValidationError()).toBeInstanceOf(Error)
+    })
+  })
 
   // -------------------------------------------------------------------------
   // Cross-class isolation (instanceof must not bleed)
@@ -136,27 +134,25 @@ describe('Error classes', () => {
 
   describe('Cross-class isolation', () => {
     it('CloudUnavailableError is NOT instanceof CloudAuthError', () => {
-      expect(new CloudUnavailableError()).not.toBeInstanceOf(CloudAuthError);
-    });
+      expect(new CloudUnavailableError()).not.toBeInstanceOf(CloudAuthError)
+    })
 
     it('CloudAuthError is NOT instanceof CloudUnavailableError', () => {
-      expect(new CloudAuthError()).not.toBeInstanceOf(CloudUnavailableError);
-    });
+      expect(new CloudAuthError()).not.toBeInstanceOf(CloudUnavailableError)
+    })
 
     it('CloudStorageError is NOT instanceof CloudValidationError', () => {
-      expect(new CloudStorageError()).not.toBeInstanceOf(
-        CloudValidationError,
-      );
-    });
+      expect(new CloudStorageError()).not.toBeInstanceOf(CloudValidationError)
+    })
 
     it('each error code is unique', () => {
       const codes = new Set([
         new CloudUnavailableError().code,
         new CloudAuthError().code,
         new CloudStorageError().code,
-        new CloudValidationError().code,
-      ]);
-      expect(codes.size).toBe(4);
-    });
-  });
-});
+        new CloudValidationError().code
+      ])
+      expect(codes.size).toBe(4)
+    })
+  })
+})
